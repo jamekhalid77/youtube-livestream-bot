@@ -22,7 +22,7 @@ test_youtube_access:
     reports:
       junit: test-results.xml
     expire_in: 1 hour
-  allow_failure: false
+  allow_failure: false 
 
 deploy_to_render:
   stage: deploy
