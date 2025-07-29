@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Livestream Bot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .step {
+            margin-bottom: 30px;
+            padding: 25px;
+            border: 2px dashed #e0e0e0;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .step:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .step h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .file-label {
+            display: block;
+            padding: 15px;
+            background: #f0f0f0;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .file-label:hover {
+            background: #e8f4fd;
+            border-color: #667eea;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .input-group input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .input-group input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 65, 108, 0.3);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .status {
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .streaming-indicator {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        
+        .streaming-live {
+            background: #28a745;
+            color: white;
+            animation: pulse 2s infinite;
+        }
+        
+        .streaming-offline {
+            background: #6c757d;
+            color: white;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 14px;
+        }
+        
+        .progress {
+            display: none;
+            margin: 15px 0;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+            animation: loading 2s infinite;
+        }
+        
+        @keyframes loading {
+            0% { width: 0%; }
+            50% { width: 100%; }
+            100% { width: 0%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 YouTube Livestream Bot</h1>
+            <p>Upload a video and stream it 24/7 to YouTube</p>
+            <div id="streaming-status">
+                <span class="streaming-indicator streaming-offline" id="status-indicator">OFFLINE</span>
+            </div>
+        </div>
+        
+        <div class="content">
+            <!-- Step 1: Upload Video -->
+            <div class="step">
+                <h3>Step 1: Upload Your Video</h3>
+                <div class="file-upload">
+                    <input type="file" id="video-file" class="file-input" accept="video/*">
+                    <label for="video-file" class="file-label">
+                        <div id="file-label-text">
+                            📁 Click here to select a video file<br>
+                            <small>Supported: MP4, AVI, MOV, MKV, FLV, WMV (Max: 500MB)</small>
+                        </div>
+                    </label>
+                </div>
+                <div class="progress" id="upload-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 2: YouTube Stream Key -->
+            <div class="step">
+                <h3>Step 2: Enter YouTube Stream Key</h3>
+                <div class="input-group">
+                    <label for="stream-key">YouTube Live Stream Key:</label>
+                    <input type="text" id="stream-key" placeholder="Enter your YouTube livestream key here">
+                </div>
+                <small style="color: #666;">
+                    Get your stream key from YouTube Studio → Go Live → Stream Key
+                </small>
+            </div>
+            
+            <!-- Step 3: Control Streaming -->
+            <div class="step">
+                <h3>Step 3: Control Your Stream</h3>
+                <button class="btn btn-primary" id="start-btn" onclick="startStream()" disabled>
+                    🚀 Start Streaming
+                </button>
+                <button class="btn btn-danger" id="stop-btn" onclick="stopStream()" disabled>
+                    ⏹️ Stop Streaming
+                </button>
+            </div>
+            
+            <!-- Status Messages -->
+            <div id="status-messages"></div>
+        </div>
+        
+        <div class="footer">
+            <p>⚠️ Make sure your YouTube channel is enabled for live streaming</p>
+        </div>
+    </div>
+
+    <script>
+        let isStreaming = false;
+        let hasVideo = false;
+
+        // Check status on page load
+        window.onload = function() {
+            checkStatus();
+            setInterval(checkStatus, 5000); // Check every 5 seconds
+        };
+
+        // File upload handler
+        document.getElementById('video-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                uploadFile(file);
+            }
+        });
+
+        // Stream key input handler
+        document.getElementById('stream-key').addEventListener('input', function() {
+            updateButtonStates();
+        });
+
+        function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('video', file);
+            
+            showProgress();
+            showStatus('Uploading video file...', 'info');
+            
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideProgress();
+                if (data.success) {
+                    hasVideo = true;
+                    showStatus(data.message, 'success');
+                    document.getElementById('file-label-text').innerHTML = 
+                        `✅ ${file.name}<br><small>File uploaded successfully!</small>`;
+                    updateButtonStates();
+                } else {
+                    showStatus(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                hideProgress();
+                showStatus('Upload failed: ' + error.message, 'error');
+            });
+        }
+
+        function startStream() {
+            const streamKey = document.getElementById('stream-key').value.trim();
+            
+            if (!streamKey) {
+                showStatus('Please enter your YouTube stream key', 'error');
+                return;
+            }
+            
+            showStatus('Starting livestream...', 'info');
+            
+            fetch('/start_stream', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ stream_key: streamKey })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    isStreaming = true;
+                    showStatus(data.message, 'success');
+                    updateStreamingStatus();
+                    updateButtonStates();
+                } else {
+                    showStatus(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showStatus('Failed to start stream: ' + error.message, 'error');
+            });
+        }
+
+        function stopStream() {
+            showStatus('Stopping livestream...', 'info');
+            
+            fetch('/stop_stream', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    isStreaming = false;
+                    showStatus(data.message, 'success');
+                    updateStreamingStatus();
+                    updateButtonStates();
+                } else {
+                    showStatus(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showStatus('Failed to stop stream: ' + error.message, 'error');
+            });
+        }
+
+        function checkStatus() {
+            fetch('/status')
+            .then(response => response.json())
+            .then(data => {
+                isStreaming = data.is_streaming;
+                hasVideo = data.has_video;
+                updateStreamingStatus();
+                updateButtonStates();
+                
+                if (data.video_name && hasVideo) {
+                    document.getElementById('file-label-text').innerHTML = 
+                        `✅ ${data.video_name}<br><small>File ready for streaming!</small>`;
+                }
+            })
+            .catch(error => {
+                console.error('Status check failed:', error);
+            });
+        }
+
+        function updateStreamingStatus() {
+            const indicator = document.getElementById('status-indicator');
+            if (isStreaming) {
+                indicator.textContent = 'LIVE';
+                indicator.className = 'streaming-indicator streaming-live';
+            } else {
+                indicator.textContent = 'OFFLINE';
+                indicator.className = 'streaming-indicator streaming-offline';
+            }
+        }
+
+        function updateButtonStates() {
+            const startBtn = document.getElementById('start-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            const streamKey = document.getElementById('stream-key').value.trim();
+            
+            startBtn.disabled = !hasVideo || !streamKey || isStreaming;
+            stopBtn.disabled = !isStreaming;
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status-messages');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+            
+            // Auto-hide success messages after 5 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusDiv.innerHTML = '';
+                }, 5000);
+            }
+        }
+
+        function showProgress() {
+            document.getElementById('upload-progress').style.display = 'block';
+        }
+
+        function hideProgress() {
+            document.getElementById('upload-progress').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
