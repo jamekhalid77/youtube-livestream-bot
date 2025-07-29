@@ -1,9 +1,8 @@
-# Multi-Stream YouTube Livestream Bot
+# Multi-Stream YouTube Livestream Bot with GitLab Integration
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_cors import CORS
-import os, threading, subprocess, time, json, uuid
+import os, threading, subprocess, time, json, uuid, requests
 from werkzeug.utils import secure_filename
-import yt_dlp
 from datetime import datetime
 
 # Initialize Flask app
@@ -15,6 +14,10 @@ UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'flv', 'wmv'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
+
+# GitLab Configuration
+GITLAB_PROJECT_ID = "72063753"  # Your youtube-url-processor project ID
+GITLAB_API_BASE = "https://gitlab.com/api/v4"
 
 # Global variables for multiple streams
 active_streams = {}  # Dictionary to store all active streams
@@ -122,50 +125,108 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def get_youtube_info(url):
-    """Extract YouTube video information"""
+def trigger_gitlab_extraction(youtube_url):
+    """Trigger GitLab pipeline to extract YouTube URL"""
     try:
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False,
+        # Trigger GitLab pipeline with YouTube URL
+        pipeline_data = {
+            "ref": "master",
+            "variables": [
+                {
+                    "key": "YOUTUBE_URL",
+                    "value": youtube_url
+                }
+            ]
         }
         
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            
-            # Get the best video format
-            formats = info.get('formats', [])
-            video_url = None
-            quality = "Unknown"
-            
-            # Find best video+audio format
-            for f in reversed(formats):
-                if f.get('vcodec') != 'none' and f.get('acodec') != 'none':
-                    video_url = f['url']
-                    quality = f.get('format_note', f.get('height', 'Unknown'))
-                    break
-            
-            if not video_url:
-                # Fallback to best video format
-                video_url = info.get('url')
-            
+        response = requests.post(
+            f"{GITLAB_API_BASE}/projects/{GITLAB_PROJECT_ID}/pipeline",
+            json=pipeline_data,
+            timeout=10
+        )
+        
+        if response.status_code == 201:
+            pipeline_info = response.json()
             return {
                 'success': True,
-                'info': {
-                    'title': info.get('title', 'Unknown'),
-                    'duration': str(info.get('duration', 'Unknown')) + 's' if info.get('duration') else 'Unknown',
-                    'quality': str(quality),
-                    'channel': info.get('uploader', 'Unknown'),
-                    'views': info.get('view_count', 'Unknown'),
-                    'url': video_url
-                }
+                'pipeline_id': pipeline_info['id'],
+                'message': 'GitLab extraction started'
             }
+        else:
+            return {
+                'success': False,
+                'message': f'Failed to trigger GitLab pipeline: {response.status_code}'
+            }
+            
     except Exception as e:
         return {
             'success': False,
-            'message': f"Failed to extract video info: {str(e)}"
+            'message': f'Error triggering GitLab extraction: {str(e)}'
         }
+
+def wait_for_gitlab_result(pipeline_id, max_wait=120):
+    """Wait for GitLab pipeline to complete and get result"""
+    start_time = time.time()
+    
+    while time.time() - start_time < max_wait:
+        try:
+            # Check pipeline status
+            response = requests.get(
+                f"{GITLAB_API_BASE}/projects/{GITLAB_PROJECT_ID}/pipelines/{pipeline_id}",
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                pipeline = response.json()
+                status = pipeline.get('status')
+                
+                if status == 'success':
+                    # Pipeline completed successfully, get the result
+                    try:
+                        result_response = requests.get(
+                            f"https://jamekhalid77-group.gitlab.io/youtube-url-processor/stream_result.json",
+                            timeout=10
+                        )
+                        
+                        if result_response.status_code == 200:
+                            result = result_response.json()
+                            if result.get('success'):
+                                return {
+                                    'success': True,
+                                    'direct_url': result['direct_url'],
+                                    'info': {
+                                        'title': result['title'],
+                                        'duration': result['duration'],
+                                        'channel': result['channel'],
+                                        'quality': result['quality'],
+                                        'type': 'YouTube (GitLab Processed)'
+                                    }
+                                }
+                            else:
+                                return {
+                                    'success': False,
+                                    'message': result.get('error', 'Unknown extraction error')
+                                }
+                    except:
+                        pass
+                        
+                elif status == 'failed':
+                    return {
+                        'success': False,
+                        'message': 'GitLab extraction pipeline failed'
+                    }
+                
+                # Still running, wait a bit more
+                time.sleep(5)
+            
+        except Exception as e:
+            time.sleep(5)
+            continue
+    
+    return {
+        'success': False,
+        'message': 'Timeout waiting for GitLab extraction'
+    }
 
 @app.route('/')
 def index():
@@ -212,15 +273,33 @@ def upload_file():
 
 @app.route('/fetch_youtube_info', methods=['POST'])
 def fetch_youtube_info():
-    """Fetch YouTube video information"""
+    """Fetch YouTube video information using GitLab"""
     data = request.get_json()
     url = data.get('url', '').strip()
     
     if not url:
         return jsonify({'success': False, 'message': 'URL is required'})
     
-    result = get_youtube_info(url)
-    return jsonify(result)
+    # Trigger GitLab extraction
+    trigger_result = trigger_gitlab_extraction(url)
+    
+    if not trigger_result['success']:
+        return jsonify(trigger_result)
+    
+    # Wait for GitLab to process the URL
+    result = wait_for_gitlab_result(trigger_result['pipeline_id'])
+    
+    if result['success']:
+        return jsonify({
+            'success': True,
+            'info': result['info'],
+            'direct_url': result['direct_url']
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': result['message']
+        })
 
 @app.route('/create_stream', methods=['POST'])
 def create_stream():
@@ -257,14 +336,20 @@ def create_stream():
         if not youtube_url:
             return jsonify({'success': False, 'message': 'YouTube URL is required'})
         
-        # Get YouTube video info
-        result = get_youtube_info(youtube_url)
-        if not result['success']:
-            return jsonify(result)
+        # Automatically process YouTube URL through GitLab
+        trigger_result = trigger_gitlab_extraction(youtube_url)
         
-        source_path = result['info']['url']
+        if not trigger_result['success']:
+            return jsonify({'success': False, 'message': f'Failed to process YouTube URL: {trigger_result["message"]}'})
+        
+        # Wait for GitLab processing
+        result = wait_for_gitlab_result(trigger_result['pipeline_id'])
+        
+        if not result['success']:
+            return jsonify({'success': False, 'message': f'YouTube processing failed: {result["message"]}'})
+        
+        source_path = result['direct_url']
         video_details = result['info']
-        video_details['type'] = 'YouTube'
     
     else:
         return jsonify({'success': False, 'message': 'Invalid source type'})
