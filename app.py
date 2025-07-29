@@ -128,6 +128,13 @@ def allowed_file(filename):
 def trigger_gitlab_extraction(youtube_url):
     """Trigger GitLab pipeline to extract YouTube URL"""
     try:
+        gitlab_token = os.environ.get('GITLAB_ACCESS_TOKEN')
+        if not gitlab_token:
+            return {
+                'success': False,
+                'message': 'GitLab access token not configured'
+            }
+        
         # Trigger GitLab pipeline with YouTube URL
         pipeline_data = {
             "ref": "master",
@@ -139,9 +146,15 @@ def trigger_gitlab_extraction(youtube_url):
             ]
         }
         
+        headers = {
+            'Authorization': f'Bearer {gitlab_token}',
+            'Content-Type': 'application/json'
+        }
+        
         response = requests.post(
             f"{GITLAB_API_BASE}/projects/{GITLAB_PROJECT_ID}/pipeline",
             json=pipeline_data,
+            headers=headers,
             timeout=10
         )
         
@@ -155,7 +168,7 @@ def trigger_gitlab_extraction(youtube_url):
         else:
             return {
                 'success': False,
-                'message': f'Failed to trigger GitLab pipeline: {response.status_code}'
+                'message': f'Failed to trigger GitLab pipeline: {response.status_code} - {response.text}'
             }
             
     except Exception as e:
@@ -167,12 +180,19 @@ def trigger_gitlab_extraction(youtube_url):
 def wait_for_gitlab_result(pipeline_id, max_wait=120):
     """Wait for GitLab pipeline to complete and get result"""
     start_time = time.time()
+    gitlab_token = os.environ.get('GITLAB_ACCESS_TOKEN')
+    
+    headers = {
+        'Authorization': f'Bearer {gitlab_token}',
+        'Content-Type': 'application/json'
+    } if gitlab_token else {}
     
     while time.time() - start_time < max_wait:
         try:
             # Check pipeline status
             response = requests.get(
                 f"{GITLAB_API_BASE}/projects/{GITLAB_PROJECT_ID}/pipelines/{pipeline_id}",
+                headers=headers,
                 timeout=10
             )
             
