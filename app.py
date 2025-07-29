@@ -170,19 +170,12 @@ def trigger_gitlab_extraction(youtube_url):
 def wait_for_gitlab_result(pipeline_id, max_wait=120):
     """Wait for GitLab pipeline to complete and get result"""
     start_time = time.time()
-    gitlab_token = os.environ.get('GITLAB_ACCESS_TOKEN')
-    
-    headers = {
-        'Authorization': f'Bearer {gitlab_token}',
-        'Content-Type': 'application/json'
-    } if gitlab_token else {}
     
     while time.time() - start_time < max_wait:
         try:
-            # Check pipeline status
+            # Check pipeline status (public API, no auth needed)
             response = requests.get(
                 f"{GITLAB_API_BASE}/projects/{GITLAB_PROJECT_ID}/pipelines/{pipeline_id}",
-                headers=headers,
                 timeout=10
             )
             
@@ -227,6 +220,9 @@ def wait_for_gitlab_result(pipeline_id, max_wait=120):
                     }
                 
                 # Still running, wait a bit more
+                time.sleep(5)
+            else:
+                # If we can't check status, just wait
                 time.sleep(5)
             
         except Exception as e:
@@ -456,6 +452,21 @@ def get_status():
 def health_check():
     """Health check endpoint for Render"""
     return jsonify({'status': 'healthy'})
+
+@app.route('/test_gitlab_config')
+def test_gitlab_config():
+    """Test GitLab configuration"""
+    trigger_token = os.environ.get('GITLAB_TRIGGER_TOKEN')
+    access_token = os.environ.get('GITLAB_ACCESS_TOKEN')
+    
+    return jsonify({
+        'trigger_token_configured': bool(trigger_token),
+        'trigger_token_preview': trigger_token[:10] + "..." if trigger_token else None,
+        'access_token_configured': bool(access_token),
+        'gitlab_project_id': GITLAB_PROJECT_ID,
+        'code_version': 'trigger_token_version_v2',
+        'gitlab_api_base': GITLAB_API_BASE
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
