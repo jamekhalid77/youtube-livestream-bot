@@ -126,35 +126,25 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def trigger_gitlab_extraction(youtube_url):
-    """Trigger GitLab pipeline to extract YouTube URL"""
+    """Trigger GitLab pipeline to extract YouTube URL using trigger token"""
     try:
-        gitlab_token = os.environ.get('GITLAB_ACCESS_TOKEN')
-        if not gitlab_token:
+        trigger_token = os.environ.get('GITLAB_TRIGGER_TOKEN')
+        if not trigger_token:
             return {
                 'success': False,
-                'message': 'GitLab access token not configured'
+                'message': 'GitLab trigger token not configured'
             }
         
-        # Trigger GitLab pipeline with YouTube URL
-        pipeline_data = {
-            "ref": "master",
-            "variables": [
-                {
-                    "key": "YOUTUBE_URL",
-                    "value": youtube_url
-                }
-            ]
-        }
-        
-        headers = {
-            'Authorization': f'Bearer {gitlab_token}',
-            'Content-Type': 'application/json'
+        # Use GitLab trigger API with form data
+        trigger_data = {
+            'token': trigger_token,
+            'ref': 'master',
+            'variables[YOUTUBE_URL]': youtube_url
         }
         
         response = requests.post(
-            f"{GITLAB_API_BASE}/projects/{GITLAB_PROJECT_ID}/pipeline",
-            json=pipeline_data,
-            headers=headers,
+            f"{GITLAB_API_BASE}/projects/{GITLAB_PROJECT_ID}/trigger/pipeline",
+            data=trigger_data,  # Use form data instead of JSON
             timeout=10
         )
         
