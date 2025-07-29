@@ -1,0 +1,37 @@
+stages:
+  - test
+  - deploy
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip/
+
+test_youtube_access:
+  stage: test
+  image: python:3.11
+  before_script:
+    - pip install --upgrade pip
+    - pip install yt-dlp requests
+  script:
+    - echo "🔍 Testing YouTube access from GitLab CI/CD runners..."
+    - python test-youtube.py
+  artifacts:
+    reports:
+      junit: test-results.xml
+    expire_in: 1 hour
+  allow_failure: false
+
+deploy_to_render:
+  stage: deploy
+  image: python:3.11
+  script:
+    - echo "✅ YouTube test passed! Ready for deployment."
+    - echo "🚀 Your app is already deployed on Render:"
+    - echo "   https://youtube-livestream-bot.onrender.com"
+  only:
+    - master
+  needs:
+    - test_youtube_access
